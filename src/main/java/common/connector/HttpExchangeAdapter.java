@@ -21,26 +21,26 @@ public class HttpExchangeAdapter implements HttpExchangeRequest, HttpExchangeRes
 
     @Override
     public String getRequestMethod() {
-        return "";
+        return exchange.getRequestMethod();
     }
 
     @Override
     public URI gerRequestURI() {
-        return null;
+        return exchange.getRequestURI();
     }
 
     @Override
     public Headers getResponseHeaders() {
-        return null;
+        return exchange.getResponseHeaders();
     }
 
     @Override
     public void sendResponseHeaders(int rCode, long responseLength) throws IOException {
-
+        exchange.sendResponseHeaders(rCode, responseLength);
     }
 
     @Override
     public OutputStream getResponseBody() {
-        return null;
+        return exchange.getResponseBody();
     }
 }

@@ -9,6 +9,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.security.Principal;
 import java.util.*;
 
@@ -227,6 +228,23 @@ public class HttpServletRequestImpl implements HttpServletRequest {
             Map<String,String> params =parseQuery(query);
             return params.get(s);
         }
+        return null;
+    }
+
+    Map<String,String> parseQuery(String query){
+        if (query == null || query.isEmpty()){
+            return Map.of();
+        }
+
+        Map<String,String> params = new HashMap<>();
+        String[] pairs = query.split("&");
+        for (String pair : pairs) {
+            String[] keyValue = pair.split("=");
+            if (keyValue.length == 2) {
+                params.put(keyValue[0], URLDecoder.decode(keyValue[1], java.nio.charset.StandardCharsets.UTF_8));
+            }
+        }
+        return params;
     }
 
     @Override

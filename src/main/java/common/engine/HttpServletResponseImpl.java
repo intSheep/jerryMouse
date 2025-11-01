@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -133,7 +134,8 @@ public class HttpServletResponseImpl implements HttpServletResponse {
 
     @Override
     public PrintWriter getWriter() throws IOException {
-        return new PrintWriter(exchangeResponse.getResponseBody());
+        this.exchangeResponse.sendResponseHeaders(200,0);
+        return new PrintWriter(this.exchangeResponse.getResponseBody(), true, StandardCharsets.UTF_8);
     }
 
     @Override
