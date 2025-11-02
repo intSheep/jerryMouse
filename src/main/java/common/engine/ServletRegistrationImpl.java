@@ -1,9 +1,6 @@
 package common.engine;
 
-import jakarta.servlet.MultipartConfigElement;
-import jakarta.servlet.ServletContext;
-import jakarta.servlet.ServletRegistration;
-import jakarta.servlet.ServletSecurityElement;
+import jakarta.servlet.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,7 +15,43 @@ public class ServletRegistrationImpl implements ServletRegistration.Dynamic {
 
     final ServletContext servletContext;
 
+    final String name;
 
+    final Servlet servlet;
+
+    final List<String> urlPatterns = new ArrayList<>(4);
+
+    boolean initialized = false;
+
+    public ServletRegistrationImpl(ServletContext servletContext, String name, Servlet servlet) {
+        this.servletContext = servletContext;
+        this.name = name;
+        this.servlet = servlet;
+    }
+
+    public ServletConfig getServletConfig() {
+        return new ServletConfig() {
+            @Override
+            public String getServletName() {
+                return ServletRegistrationImpl.this.name;
+            }
+
+            @Override
+            public ServletContext getServletContext() {
+                return ServletRegistrationImpl.this.servletContext;
+            }
+
+            @Override
+            public String getInitParameter(String name) {
+                return null;
+            }
+
+            @Override
+            public Enumeration<String> getInitParameterNames() {
+                return null;
+            }
+        };
+    }
 
 
     @Override

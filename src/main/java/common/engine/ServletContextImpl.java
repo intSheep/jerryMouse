@@ -25,7 +25,7 @@ import java.util.*;
 public class ServletContextImpl implements ServletContext {
     final Logger logger = LoggerFactory.getLogger(getClass());
 
-    private Map<String,ServletContextImpl> servletRegistrations = new HashMap<>();
+    private Map<String,ServletRegistrationImpl> servletRegistrations = new HashMap<>();
 
     final Map<String,Servlet> namesToServlets = new HashMap<>();
 
@@ -58,14 +58,25 @@ public class ServletContextImpl implements ServletContext {
             if (annotation != null){
                  logger.info("Initializing servlet $WebServlet: {}", clazz.getName());
 
-                 Class<? extends  Servlet> c = (Class<? extends Servlet>) clazz;
+                Class<? extends  Servlet> c = (Class<? extends Servlet>) clazz;
                 ServletRegistration.Dynamic  registration=this.addServlet(AnnoUtils.getServletName(clazz),c);
                 registration.addMapping(AnnoUtils.getServletUrlPatterns(clazz));
                 registration.setInitParameters(AnnoUtils.getServletInitParams(clazz));
 
             }
-
-
+            this.servletRegistrations.forEach((k,v)->{
+                try {
+                    v.servlet.init(v.getServletConfig());
+                    this.namesToServlets.put(k,v.servlet);
+                    for (String urlPattern : v.urlPatterns) {
+                        this.servletMappings.add(new ServletMapping(urlPattern,v.servlet));
+                    }
+                    v.initialized = true;
+                } catch (ServletException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            Collections.sort(this.servletMappings);
         }
     }
 
