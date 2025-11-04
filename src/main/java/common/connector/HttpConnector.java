@@ -6,6 +6,9 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import common.engine.HttpServletRequestImpl;
 import common.engine.HttpServletResponseImpl;
+import common.engine.ServletContextImpl;
+import common.engine.servlet.HelloServlet;
+import common.engine.servlet.IndexServlet;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -14,6 +17,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.List;
 
 /**
  * @description HttpConnector
@@ -22,10 +26,13 @@ import java.io.PrintWriter;
  */
 public class HttpConnector implements HttpHandler,AutoCloseable {
     final HttpServer httpServer;
+    final ServletContextImpl servletContext ;
 
     final Logger logger = LoggerFactory.getLogger(getClass());
 
     public HttpConnector() throws  IOException{
+        this.servletContext = new ServletContextImpl();
+        this.servletContext.initialize(List.of(IndexServlet.class, HelloServlet.class));
         String host = "0.0.0.0";
         int port = 8080;
         this.httpServer = HttpServer.create(
@@ -42,20 +49,10 @@ public class HttpConnector implements HttpHandler,AutoCloseable {
         var response = new HttpServletResponseImpl(adapter);
         var request = new HttpServletRequestImpl(adapter);
         try {
-            process(request,response);
+           this.servletContext.process(request, response);
         } catch (ServletException e) {
             throw new RuntimeException(e);
         }
-    }
-
-
-    void process(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-       String name = request.getParameter("name");
-       String html = "<h1>Hello,"+(name != null ? name : "World")+"!</h1>";
-       response.setContentType("text/html");
-        PrintWriter pw = response.getWriter();
-        pw.write(html);
-        pw.close();
     }
 
     @Override

@@ -202,8 +202,11 @@ public class ServletContextImpl implements ServletContext {
     }
 
     @Override
-    public ServletRegistration.Dynamic addServlet(String s, String s1) {
-        return null;
+    public ServletRegistration.Dynamic addServlet(String name, String className) {
+        if (className == null || className.isEmpty()){
+            throw new IllegalArgumentException("Servlet class name cannot be null or empty");
+        }
+        // TODO:add servelet
     }
 
     @Override
