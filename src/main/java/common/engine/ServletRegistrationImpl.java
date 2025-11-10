@@ -80,7 +80,11 @@ public class ServletRegistrationImpl implements ServletRegistration.Dynamic {
     }
 
     @Override
-    public Set<String> addMapping(String... strings) {
+    public Set<String> addMapping(String... patterns) {
+        if (patterns.length == 0) {
+            throw new IllegalStateException("urlPatterns cannot be empty");
+        }
+        urlPatterns.addAll(Arrays.asList(patterns));
         return Set.of();
     }
 

@@ -206,19 +206,65 @@ public class ServletContextImpl implements ServletContext {
         if (className == null || className.isEmpty()){
             throw new IllegalArgumentException("Servlet class name cannot be null or empty");
         }
-        // TODO:add servelet
+        Servlet servlet;
+        try {
+            servlet = createInstance(className);
+        } catch (ServletException e) {
+            throw new RuntimeException(e);
+        }
+        return addServlet(name, servlet);
     }
 
     @Override
     public ServletRegistration.Dynamic addServlet(String s, Servlet servlet) {
-        return null;
+        if (s == null){
+            throw new IllegalArgumentException("Servlet name cannot be null");
+        }
+
+        if (servlet == null){
+            throw new IllegalArgumentException("Servlet instance cannot be null");
+        }
+
+        var servletRegistration = new ServletRegistrationImpl(this, s, servlet);
+        this.servletRegistrations.put(s, servletRegistration);
+        return servletRegistration;
     }
 
     @Override
-    public ServletRegistration.Dynamic addServlet(String s, Class<? extends Servlet> aClass) {
-        return null;
+    public ServletRegistration.Dynamic addServlet(String name, Class<? extends Servlet> clazz) {
+        if (name == null || name.isEmpty()){
+            throw new IllegalArgumentException("Servlet name cannot be null or empty");
+        }
+        if (clazz == null){
+            throw new IllegalArgumentException("Servlet class cannot be null");
+        }
+        Servlet servlet;
+        try {
+             servlet = createInstance(clazz);
+        } catch (ServletException e) {
+            throw new RuntimeException(e);
+        }
+        return addServlet(name, servlet);
     }
 
+    @SuppressWarnings("unchecked")
+    private <T> T createInstance(String className)throws ServletException {
+        Class<T> clazz;
+        try {
+            clazz = (Class<T>) Class.forName(className);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Class not found: " + className, e);
+        }
+        return createInstance(clazz);
+    }
+
+    private <T> T createInstance(Class<T> clazz)throws ServletException {
+        try {
+            return clazz.getDeclaredConstructor().newInstance();
+        } catch (Exception e) {
+            throw new ServletException("Failed to create instance of class: " + clazz.getName(), e);
+        }
+    }
 
     @Override
     public ServletRegistration.Dynamic addJspFile(String s, String s1) {
