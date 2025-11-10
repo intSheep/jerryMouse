@@ -1,8 +1,11 @@
 package common.engine;
 
+import common.FilterRegistrationImpl;
+import common.engine.mapping.FilterMapping;
 import common.engine.mapping.ServletMapping;
 import common.utils.AnnoUtils;
 import jakarta.servlet.*;
+import jakarta.servlet.annotation.WebFilter;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.descriptor.JspConfigDescriptor;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,10 +29,13 @@ public class ServletContextImpl implements ServletContext {
     final Logger logger = LoggerFactory.getLogger(getClass());
 
     private Map<String,ServletRegistrationImpl> servletRegistrations = new HashMap<>();
+    private Map<String, FilterRegistrationImpl> filterRegistrations = new HashMap<>();
 
     final Map<String,Servlet> namesToServlets = new HashMap<>();
+    final Map<String,Filter> namesToFilters = new HashMap<>();
 
     final List<ServletMapping> servletMappings = new ArrayList<>();
+    final List<FilterMapping> filterMappings = new ArrayList<>();
 
     public void process(HttpServletRequest request, HttpServletResponse response)throws IOException,ServletException{
         String path = request.getRequestURI();
@@ -52,7 +58,7 @@ public class ServletContextImpl implements ServletContext {
         servlet.service(request, response);
     }
 
-    public void initialize(List<Class<?>>servletClass){
+    public void initServlets(List<Class<?>>servletClass){
         for (Class<?> clazz : servletClass) {
             WebServlet annotation = clazz.getAnnotation(WebServlet.class);
             if (annotation != null){
@@ -78,6 +84,33 @@ public class ServletContextImpl implements ServletContext {
             });
             Collections.sort(this.servletMappings);
         }
+    }
+
+    public void initFilters(List<Class<?>> filterClasses){
+        for (Class<?> c : filterClasses) {
+            WebFilter wf = c.getAnnotation(WebFilter.class);
+            if (wf != null) {
+                logger.info("auto register @WebFilter: {}", c.getName());
+                @SuppressWarnings("unchecked")
+                Class<? extends Filter> clazz = (Class<? extends Filter>) c;
+                FilterRegistration.Dynamic registration = this.addFilter(AnnoUtils.getFilterName(clazz), clazz);
+                registration.addMappingForUrlPatterns(EnumSet.of(DispatcherType.REQUEST), true, AnnoUtils.getFilterUrlPatterns(clazz));
+                registration.setInitParameters(AnnoUtils.getFilterInitParams(clazz));
+            }
+        }
+
+        this.filterRegistrations.forEach((k,v)->{
+            try {
+                v.filter.init(v.getFilterConfig());
+                this.namesToFilters.put(k,v.filter);
+                for (String urlPattern : v.urlPatterns) {
+                    this.filterMappings.add(new FilterMapping(urlPattern,v.filter));
+                }
+                v.initialized = true;
+            } catch (ServletException e) {
+                throw new RuntimeException(e);
+            }
+        })
     }
 
     @Override

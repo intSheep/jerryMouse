@@ -10,13 +10,10 @@ import common.engine.ServletContextImpl;
 import common.engine.servlet.HelloServlet;
 import common.engine.servlet.IndexServlet;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.List;
 
 /**
@@ -32,7 +29,7 @@ public class HttpConnector implements HttpHandler,AutoCloseable {
 
     public HttpConnector() throws  IOException{
         this.servletContext = new ServletContextImpl();
-        this.servletContext.initialize(List.of(IndexServlet.class, HelloServlet.class));
+        this.servletContext.initServlets(List.of(IndexServlet.class, HelloServlet.class));
         String host = "0.0.0.0";
         int port = 8080;
         this.httpServer = HttpServer.create(
