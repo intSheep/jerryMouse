@@ -25,8 +25,18 @@ public class HttpExchangeAdapter implements HttpExchangeRequest, HttpExchangeRes
     }
 
     @Override
-    public URI gerRequestURI() {
+    public URI getRequestURI() {
         return exchange.getRequestURI();
+    }
+
+    @Override
+    public Headers getRequestHeaders() {
+        return exchange.getRequestHeaders();
+    }
+
+    @Override
+    public byte[] getRequestBody() throws IOException {
+        return exchange.getRequestBody().readAllBytes();
     }
 
     @Override

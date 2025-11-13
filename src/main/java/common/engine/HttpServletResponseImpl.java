@@ -26,7 +26,7 @@ public class HttpServletResponseImpl implements HttpServletResponse {
         this.exchangeResponse = exchangeResponse;
     }
 
-
+    int status = 200;
     @Override
     public void addCookie(Cookie cookie) {
 
@@ -48,8 +48,11 @@ public class HttpServletResponseImpl implements HttpServletResponse {
     }
 
     @Override
-    public void sendError(int i, String s) throws IOException {
-
+    public void sendError(int sc, String msg) throws IOException {
+        this.status = sc;
+        PrintWriter pw = getWriter();
+        pw.write(String.format("<h1>%d %s</h1>", sc, msg));
+        pw.close();
     }
 
     @Override
@@ -94,7 +97,7 @@ public class HttpServletResponseImpl implements HttpServletResponse {
 
     @Override
     public void setStatus(int i) {
-
+        this.status = i;
     }
 
     @Override

@@ -107,7 +107,7 @@ public class HttpServletRequestImpl implements HttpServletRequest {
 
     @Override
     public String getRequestURI() {
-      URI uri =   this.exchangeRequest.gerRequestURI();
+      URI uri =   this.exchangeRequest.getRequestURI();
         return uri.getPath();
     }
 
@@ -223,7 +223,7 @@ public class HttpServletRequestImpl implements HttpServletRequest {
 
     @Override
     public String getParameter(String s) {
-        String query = this.exchangeRequest.gerRequestURI().getQuery();
+        String query = this.exchangeRequest.getRequestURI().getQuery();
         if (query != null) {
             Map<String,String> params =parseQuery(query);
             return params.get(s);

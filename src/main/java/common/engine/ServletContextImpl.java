@@ -55,7 +55,24 @@ public class ServletContextImpl implements ServletContext {
             writer.close();
             return;
         }
-        servlet.service(request, response);
+        List<Filter> enabledFilters = new ArrayList<>();
+        for (FilterMapping mapping : this.filterMappings) {
+            if (mapping.matches(path)) {
+                enabledFilters.add(mapping.filter);
+            }
+        }
+        Filter[] filters = enabledFilters.toArray(Filter[]::new);
+        logger.atDebug().log("process {} by filter {}, servlet {}", path, Arrays.toString(filters), servlet);
+        FilterChain chain = new FilterChainImpl(filters, servlet);
+        try {
+            chain.doFilter(request, response);
+        } catch (ServletException e) {
+            logger.error(e.getMessage(), e);
+            throw new IOException(e);
+        } catch (IOException e) {
+            logger.error(e.getMessage(), e);
+            throw e;
+        }
     }
 
     public void initServlets(List<Class<?>>servletClass){
@@ -86,7 +103,7 @@ public class ServletContextImpl implements ServletContext {
         }
     }
 
-    public void initFilters(List<Class<?>> filterClasses){
+    public void initFilters(List<Class<?>> filterClasses) {
         for (Class<?> c : filterClasses) {
             WebFilter wf = c.getAnnotation(WebFilter.class);
             if (wf != null) {
@@ -99,18 +116,20 @@ public class ServletContextImpl implements ServletContext {
             }
         }
 
-        this.filterRegistrations.forEach((k,v)->{
+        // init filters:
+        for (String name : this.filterRegistrations.keySet()) {
+            var registration = this.filterRegistrations.get(name);
             try {
-                v.filter.init(v.getFilterConfig());
-                this.namesToFilters.put(k,v.filter);
-                for (String urlPattern : v.urlPatterns) {
-                    this.filterMappings.add(new FilterMapping(urlPattern,v.filter));
+                registration.filter.init(registration.getFilterConfig());
+                this.namesToFilters.put(name, registration.filter);
+                for (String urlPattern : registration.getUrlPatternMappings()) {
+                    this.filterMappings.add(new FilterMapping(urlPattern, registration.filter));
                 }
-                v.initialized = true;
+                registration.initialized = true;
             } catch (ServletException e) {
-                throw new RuntimeException(e);
+                logger.error("init filter failed: " + name + " / " + registration.filter.getClass().getName(), e);
             }
-        })
+        }
     }
 
     @Override
@@ -320,29 +339,56 @@ public class ServletContextImpl implements ServletContext {
     }
 
     @Override
-    public FilterRegistration.Dynamic addFilter(String s, String s1) {
-        return null;
+    public FilterRegistration.Dynamic addFilter(String name, String className) {
+        if (className == null || className.isEmpty()) {
+            throw new IllegalArgumentException("class name is null or empty.");
+        }
+        Filter filter = null;
+        try {
+            filter = createInstance(className);
+        } catch (ServletException e) {
+            throw new RuntimeException(e);
+        }
+        return addFilter(name, filter);
     }
 
     @Override
-    public FilterRegistration.Dynamic addFilter(String s, Filter filter) {
-        return null;
+    public FilterRegistration.Dynamic addFilter(String name, Class<? extends Filter> clazz) {
+        if (clazz == null) {
+            throw new IllegalArgumentException("class is null.");
+        }
+        Filter filter = null;
+        try {
+            filter = createInstance(clazz);
+        } catch (ServletException e) {
+            throw new RuntimeException(e);
+        }
+        return addFilter(name, filter);
     }
 
     @Override
-    public FilterRegistration.Dynamic addFilter(String s, Class<? extends Filter> aClass) {
-        return null;
+    public FilterRegistration.Dynamic addFilter(String name, Filter filter) {
+        if (name == null) {
+            throw new IllegalArgumentException("name is null.");
+        }
+        if (filter == null) {
+            throw new IllegalArgumentException("filter is null.");
+        }
+        var registration = new FilterRegistrationImpl(this, name, filter);
+        this.filterRegistrations.put(name, registration);
+        return (FilterRegistration.Dynamic) registration;
     }
 
     @Override
-    public <T extends Filter> T createFilter(Class<T> aClass) throws ServletException {
-        return null;
+    public <T extends Filter> T createFilter(Class<T> clazz) throws ServletException {
+        return createInstance(clazz);
     }
 
     @Override
-    public FilterRegistration getFilterRegistration(String s) {
-        return null;
+    public FilterRegistration getFilterRegistration(String name) {
+        return this.filterRegistrations.get(name);
     }
+
 
     @Override
     public Map<String, ? extends FilterRegistration> getFilterRegistrations() {

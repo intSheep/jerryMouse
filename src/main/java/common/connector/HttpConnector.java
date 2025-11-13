@@ -7,6 +7,8 @@ import com.sun.net.httpserver.HttpServer;
 import common.engine.HttpServletRequestImpl;
 import common.engine.HttpServletResponseImpl;
 import common.engine.ServletContextImpl;
+import common.engine.filter.HelloFilter;
+import common.engine.filter.LogFilter;
 import common.engine.servlet.HelloServlet;
 import common.engine.servlet.IndexServlet;
 import jakarta.servlet.ServletException;
@@ -30,6 +32,7 @@ public class HttpConnector implements HttpHandler,AutoCloseable {
     public HttpConnector() throws  IOException{
         this.servletContext = new ServletContextImpl();
         this.servletContext.initServlets(List.of(IndexServlet.class, HelloServlet.class));
+        this.servletContext.initFilters(List.of(HelloFilter.class, LogFilter.class));
         String host = "0.0.0.0";
         int port = 8080;
         this.httpServer = HttpServer.create(
