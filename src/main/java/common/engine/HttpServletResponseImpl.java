@@ -22,6 +22,8 @@ import java.util.Locale;
 public class HttpServletResponseImpl implements HttpServletResponse {
     final HttpExchangeResponse exchangeResponse;
 
+    boolean committed = false;
+
     public HttpServletResponseImpl(HttpExchangeResponse exchangeResponse) {
         this.exchangeResponse = exchangeResponse;
     }
@@ -183,7 +185,7 @@ public class HttpServletResponseImpl implements HttpServletResponse {
 
     @Override
     public boolean isCommitted() {
-        return false;
+        return this.committed;
     }
 
     @Override

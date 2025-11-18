@@ -11,6 +11,8 @@ import common.engine.filter.HelloFilter;
 import common.engine.filter.LogFilter;
 import common.engine.servlet.HelloServlet;
 import common.engine.servlet.IndexServlet;
+import common.engine.servlet.LoginServlet;
+import common.engine.servlet.LogoutServlet;
 import jakarta.servlet.ServletException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,7 +33,7 @@ public class HttpConnector implements HttpHandler,AutoCloseable {
 
     public HttpConnector() throws  IOException{
         this.servletContext = new ServletContextImpl();
-        this.servletContext.initServlets(List.of(IndexServlet.class, HelloServlet.class));
+        this.servletContext.initServlets(List.of(IndexServlet.class, HelloServlet.class, LoginServlet.class, LogoutServlet.class));
         this.servletContext.initFilters(List.of(HelloFilter.class, LogFilter.class));
         String host = "0.0.0.0";
         int port = 8080;
@@ -47,7 +49,7 @@ public class HttpConnector implements HttpHandler,AutoCloseable {
     public void handle(HttpExchange exchange) throws IOException {
         var adapter = new HttpExchangeAdapter(exchange);
         var response = new HttpServletResponseImpl(adapter);
-        var request = new HttpServletRequestImpl(adapter);
+        var request = new HttpServletRequestImpl(this.servletContext, adapter,response);
         try {
            this.servletContext.process(request, response);
         } catch (ServletException e) {

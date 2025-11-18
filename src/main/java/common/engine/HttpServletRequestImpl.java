@@ -1,63 +1,60 @@
 package common.engine;
 
-import common.connector.HttpExchangeRequest;
-import jakarta.servlet.*;
-import jakarta.servlet.http.*;
-
-
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
-import java.net.URI;
 import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+import java.util.regex.Pattern;
 
-/**
- * @description HttpServletRequest的实现
- * @author: zpy
- * @Date: 2025/10/24
- */
+import common.connector.HttpExchangeRequest;
+import common.engine.support.HttpHeaders;
+import common.engine.support.Parameters;
+import common.utils.HTTPUtils;
+import jakarta.servlet.AsyncContext;
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.RequestDispatcher;
+import jakarta.servlet.ServletConnection;
+import jakarta.servlet.ServletContext;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletInputStream;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.http.HttpUpgradeHandler;
+import jakarta.servlet.http.Part;
+
+
 public class HttpServletRequestImpl implements HttpServletRequest {
+
+    final ServletContextImpl servletContext;
     final HttpExchangeRequest exchangeRequest;
+    final HttpServletResponse response;
+    final HttpHeaders headers;
+    final Parameters parameters;
 
-    public HttpServletRequestImpl(HttpExchangeRequest exchangeRequest) {
+    Boolean inputCalled = null;
+
+    public HttpServletRequestImpl(ServletContextImpl servletContext, HttpExchangeRequest exchangeRequest, HttpServletResponse response) {
+        this.servletContext = servletContext;
         this.exchangeRequest = exchangeRequest;
-    }
-
-    @Override
-    public String getAuthType() {
-        return "";
-    }
-
-    @Override
-    public Cookie[] getCookies() {
-        return new Cookie[0];
-    }
-
-    @Override
-    public long getDateHeader(String s) {
-        return 0;
-    }
-
-    @Override
-    public String getHeader(String s) {
-        return "";
-    }
-
-    @Override
-    public Enumeration<String> getHeaders(String s) {
-        return null;
-    }
-
-    @Override
-    public Enumeration<String> getHeaderNames() {
-        return null;
-    }
-
-    @Override
-    public int getIntHeader(String s) {
-        return 0;
+        this.response = response;
+        this.headers = new HttpHeaders(exchangeRequest.getRequestHeaders());
+        this.parameters = new Parameters(exchangeRequest, "UTF-8");
     }
 
     @Override
@@ -66,74 +63,82 @@ public class HttpServletRequestImpl implements HttpServletRequest {
     }
 
     @Override
-    public String getPathInfo() {
-        return "";
-    }
-
-    @Override
-    public String getPathTranslated() {
-        return "";
-    }
-
-    @Override
-    public String getContextPath() {
-        return "";
-    }
-
-    @Override
-    public String getQueryString() {
-        return "";
-    }
-
-    @Override
-    public String getRemoteUser() {
-        return "";
-    }
-
-    @Override
-    public boolean isUserInRole(String s) {
-        return false;
-    }
-
-    @Override
-    public Principal getUserPrincipal() {
-        return null;
-    }
-
-    @Override
-    public String getRequestedSessionId() {
-        return "";
-    }
-
-    @Override
     public String getRequestURI() {
-      URI uri =   this.exchangeRequest.getRequestURI();
-        return uri.getPath();
+        return this.exchangeRequest.getRequestURI().getPath();
     }
 
     @Override
-    public StringBuffer getRequestURL() {
-        return null;
+    public String getParameter(String name) {
+        return this.parameters.getParameter(name);
     }
 
     @Override
-    public String getServletPath() {
-        return "";
+    public Enumeration<String> getParameterNames() {
+        return this.parameters.getParameterNames();
     }
 
     @Override
-    public HttpSession getSession(boolean b) {
-        return null;
+    public String[] getParameterValues(String name) {
+        return this.parameters.getParameterValues(name);
+    }
+
+    @Override
+    public Map<String, String[]> getParameterMap() {
+        return this.parameters.getParameterMap();
+    }
+
+    Map<String, String> parseQuery(String query) {
+        if (query == null || query.isEmpty()) {
+            return Map.of();
+        }
+        String[] ss = Pattern.compile("\\&").split(query);
+        Map<String, String> map = new HashMap<>();
+        for (String s : ss) {
+            int n = s.indexOf('=');
+            if (n >= 1) {
+                String key = s.substring(0, n);
+                String value = s.substring(n + 1);
+                map.putIfAbsent(key, URLDecoder.decode(value, StandardCharsets.UTF_8));
+            }
+        }
+        return map;
+    }
+
+    @Override
+    public HttpSession getSession(boolean create) {
+        String sessionId = null;
+        Cookie[] cookies = getCookies();
+        if (cookies != null) {
+            for (Cookie cookie : cookies) {
+                if ("JSESSIONID".equals(cookie.getName())) {
+                    sessionId = cookie.getValue();
+                    break;
+                }
+            }
+        }
+        if (sessionId == null && !create) {
+            return null;
+        }
+        if (sessionId == null) {
+            if (this.response.isCommitted()) {
+                throw new IllegalStateException("Cannot create session for response is committed.");
+            }
+            sessionId = UUID.randomUUID().toString();
+            // set cookie:
+            String cookieValue = "JSESSIONID=" + sessionId + "; Path=/; SameSite=Strict; HttpOnly";
+            this.response.addHeader("Set-Cookie", cookieValue);
+        }
+        return this.servletContext.sessionManager.getSession(sessionId);
     }
 
     @Override
     public HttpSession getSession() {
-        return null;
+        return getSession(true);
     }
 
     @Override
     public String changeSessionId() {
-        return "";
+        throw new UnsupportedOperationException("changeSessionId() is not supported.");
     }
 
     @Override
@@ -143,7 +148,7 @@ public class HttpServletRequestImpl implements HttpServletRequest {
 
     @Override
     public boolean isRequestedSessionIdFromCookie() {
-        return false;
+        return true;
     }
 
     @Override
@@ -152,248 +157,354 @@ public class HttpServletRequestImpl implements HttpServletRequest {
     }
 
     @Override
-    public boolean authenticate(HttpServletResponse httpServletResponse) throws IOException, ServletException {
-        return false;
+    public Cookie[] getCookies() {
+        String cookieValue = this.getHeader("Cookie");
+        return HTTPUtils.parseCookies(cookieValue);
     }
 
     @Override
-    public void login(String s, String s1) throws ServletException {
-
+    public ServletInputStream getInputStream() throws IOException {
+        if (this.inputCalled == null) {
+            this.inputCalled = Boolean.TRUE;
+            return new ServletInputStreamImpl(this.exchangeRequest.getRequestBody());
+        }
+        throw new IllegalStateException("Cannot reopen input stream after " + (this.inputCalled ? "getInputStream()" : "getReader()") + " was called.");
     }
 
     @Override
-    public void logout() throws ServletException {
+    public BufferedReader getReader() throws IOException {
+        if (this.inputCalled == null) {
+            this.inputCalled = Boolean.FALSE;
+            return new BufferedReader(new InputStreamReader(new ByteArrayInputStream(this.exchangeRequest.getRequestBody()), StandardCharsets.UTF_8));
+        }
+        throw new IllegalStateException("Cannot reopen input stream after " + (this.inputCalled ? "getInputStream()" : "getReader()") + " was called.");
+    }
 
+    // header operations //////////////////////////////////////////////////////
+
+    @Override
+    public long getDateHeader(String name) {
+        return this.headers.getDateHeader(name);
     }
 
     @Override
-    public Collection<Part> getParts() throws IOException, ServletException {
-        return List.of();
+    public String getHeader(String name) {
+        return this.headers.getHeader(name);
     }
 
     @Override
-    public Part getPart(String s) throws IOException, ServletException {
-        return null;
+    public Enumeration<String> getHeaders(String name) {
+        List<String> hs = this.headers.getHeaders(name);
+        if (hs == null) {
+            return Collections.emptyEnumeration();
+        }
+        return Collections.enumeration(hs);
     }
 
     @Override
-    public <T extends HttpUpgradeHandler> T upgrade(Class<T> aClass) throws IOException, ServletException {
-        return null;
+    public Enumeration<String> getHeaderNames() {
+        return Collections.enumeration(this.headers.getHeaderNames());
     }
 
     @Override
-    public Object getAttribute(String s) {
+    public int getIntHeader(String name) {
+        return this.headers.getIntHeader(name);
+    }
+
+    // not implemented yet:
+
+    @Override
+    public Object getAttribute(String name) {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public Enumeration<String> getAttributeNames() {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public String getCharacterEncoding() {
-        return "";
+        // TODO Auto-generated method stub
+        return null;
     }
 
     @Override
-    public void setCharacterEncoding(String s) throws UnsupportedEncodingException {
-
+    public void setCharacterEncoding(String env) throws UnsupportedEncodingException {
+        // TODO Auto-generated method stub
     }
 
     @Override
     public int getContentLength() {
+        // TODO Auto-generated method stub
         return 0;
     }
 
     @Override
     public long getContentLengthLong() {
+        // TODO Auto-generated method stub
         return 0;
     }
 
     @Override
     public String getContentType() {
-        return "";
-    }
-
-    @Override
-    public ServletInputStream getInputStream() throws IOException {
+        // TODO Auto-generated method stub
         return null;
-    }
-
-    @Override
-    public String getParameter(String s) {
-        String query = this.exchangeRequest.getRequestURI().getQuery();
-        if (query != null) {
-            Map<String,String> params =parseQuery(query);
-            return params.get(s);
-        }
-        return null;
-    }
-
-    Map<String,String> parseQuery(String query){
-        if (query == null || query.isEmpty()){
-            return Map.of();
-        }
-
-        Map<String,String> params = new HashMap<>();
-        String[] pairs = query.split("&");
-        for (String pair : pairs) {
-            String[] keyValue = pair.split("=");
-            if (keyValue.length == 2) {
-                params.put(keyValue[0], URLDecoder.decode(keyValue[1], java.nio.charset.StandardCharsets.UTF_8));
-            }
-        }
-        return params;
-    }
-
-    @Override
-    public Enumeration<String> getParameterNames() {
-        return null;
-    }
-
-    @Override
-    public String[] getParameterValues(String s) {
-        return new String[0];
-    }
-
-    @Override
-    public Map<String, String[]> getParameterMap() {
-        return Map.of();
     }
 
     @Override
     public String getProtocol() {
-        return "";
-    }
-
-    @Override
-    public String getScheme() {
-        return "";
-    }
-
-    @Override
-    public String getServerName() {
-        return "";
-    }
-
-    @Override
-    public int getServerPort() {
-        return 0;
-    }
-
-    @Override
-    public BufferedReader getReader() throws IOException {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
+    public String getScheme() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public String getServerName() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public int getServerPort() {
+        // TODO Auto-generated method stub
+        return 0;
+    }
+
+    @Override
     public String getRemoteAddr() {
-        return "";
+        // TODO Auto-generated method stub
+        return null;
     }
 
     @Override
     public String getRemoteHost() {
-        return "";
+        // TODO Auto-generated method stub
+        return null;
     }
 
     @Override
-    public void setAttribute(String s, Object o) {
-
+    public void setAttribute(String name, Object o) {
+        // TODO Auto-generated method stub
     }
 
     @Override
-    public void removeAttribute(String s) {
-
+    public void removeAttribute(String name) {
+        // TODO Auto-generated method stub
     }
 
     @Override
     public Locale getLocale() {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public Enumeration<Locale> getLocales() {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public boolean isSecure() {
+        // TODO Auto-generated method stub
         return false;
     }
 
     @Override
-    public RequestDispatcher getRequestDispatcher(String s) {
+    public RequestDispatcher getRequestDispatcher(String path) {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public int getRemotePort() {
+        // TODO Auto-generated method stub
         return 0;
     }
 
     @Override
     public String getLocalName() {
-        return "";
+        // TODO Auto-generated method stub
+        return null;
     }
 
     @Override
     public String getLocalAddr() {
-        return "";
+        // TODO Auto-generated method stub
+        return null;
     }
 
     @Override
     public int getLocalPort() {
+        // TODO Auto-generated method stub
         return 0;
     }
 
     @Override
     public ServletContext getServletContext() {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public AsyncContext startAsync() throws IllegalStateException {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public AsyncContext startAsync(ServletRequest servletRequest, ServletResponse servletResponse) throws IllegalStateException {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public boolean isAsyncStarted() {
+        // TODO Auto-generated method stub
         return false;
     }
 
     @Override
     public boolean isAsyncSupported() {
+        // TODO Auto-generated method stub
         return false;
     }
 
     @Override
     public AsyncContext getAsyncContext() {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public DispatcherType getDispatcherType() {
+        // TODO Auto-generated method stub
         return null;
     }
 
     @Override
     public String getRequestId() {
-        return "";
+        // TODO Auto-generated method stub
+        return null;
     }
 
     @Override
     public String getProtocolRequestId() {
-        return "";
+        // TODO Auto-generated method stub
+        return null;
     }
 
     @Override
     public ServletConnection getServletConnection() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public String getAuthType() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public String getPathInfo() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public String getPathTranslated() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public String getContextPath() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public String getQueryString() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public String getRemoteUser() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public boolean isUserInRole(String role) {
+        // TODO Auto-generated method stub
+        return false;
+    }
+
+    @Override
+    public Principal getUserPrincipal() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public String getRequestedSessionId() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public StringBuffer getRequestURL() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public String getServletPath() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public boolean authenticate(HttpServletResponse response) throws IOException, ServletException {
+        // TODO Auto-generated method stub
+        return false;
+    }
+
+    @Override
+    public void login(String username, String password) throws ServletException {
+        // TODO Auto-generated method stub
+    }
+
+    @Override
+    public void logout() throws ServletException {
+        // TODO Auto-generated method stub
+    }
+
+    @Override
+    public Collection<Part> getParts() throws IOException, ServletException {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public Part getPart(String name) throws IOException, ServletException {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public <T extends HttpUpgradeHandler> T upgrade(Class<T> handlerClass) throws IOException, ServletException {
+        // TODO Auto-generated method stub
         return null;
     }
 }

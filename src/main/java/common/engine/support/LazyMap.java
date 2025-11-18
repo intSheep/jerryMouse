@@ -11,6 +11,12 @@ public class LazyMap<V> {
 
     private Map<String,V> map = null;
 
+    private final boolean concurrent;
+
+    public LazyMap(boolean concurrent){
+        this.concurrent = concurrent;
+    }
+
     protected V get(String key){
         if (map == null){
             return null;
@@ -33,11 +39,11 @@ public class LazyMap<V> {
         return Collections.enumeration(this.map.keySet());
     }
 
-    protected void put(String key,V value){
+    protected V put(String key,V value){
         if (this.map == null){
             this.map = new HashMap<>();
         }
-        this.map.put(key,value);
+        return this.map.put(key,value);
     }
 
     protected boolean containsKey(String key){
@@ -59,5 +65,9 @@ public class LazyMap<V> {
             return Map.of();
         }
         return Collections.unmodifiableMap(this.map);
+    }
+
+    public boolean isConcurrent() {
+        return concurrent;
     }
 }
