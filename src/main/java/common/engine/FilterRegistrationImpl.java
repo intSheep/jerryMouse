@@ -1,4 +1,4 @@
-package common;
+package common.engine;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -20,11 +20,11 @@ public class FilterRegistrationImpl implements FilterRegistration.Dynamic {
 
     final ServletContext servletContext;
     final String name;
-    public final Filter filter;
+    final Filter filter;
 
     final InitParameters initParameters = new InitParameters();
     final List<String> urlPatterns = new ArrayList<>(4);
-    public boolean initialized = false;
+    boolean initialized = false;
 
     public FilterRegistrationImpl(ServletContext servletContext, String name, Filter filter) {
         this.servletContext = servletContext;
@@ -87,7 +87,7 @@ public class FilterRegistrationImpl implements FilterRegistration.Dynamic {
 
     @Override
     public Map<String, String> getInitParameters() {
-        return this.initParameters.getInitParameter();
+        return this.initParameters.getInitParameters();
     }
 
     @Override

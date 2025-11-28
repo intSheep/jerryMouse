@@ -1,6 +1,5 @@
 package common.engine;
 
-import common.FilterRegistrationImpl;
 import common.engine.mapping.FilterMapping;
 import common.engine.mapping.ServletMapping;
 import common.utils.AnnoUtils;
